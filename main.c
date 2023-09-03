@@ -19,7 +19,8 @@
 #include "lvgl/src/dev/sdl/lv_sdl_mousewheel.h"
 #include "lvgl/src/dev/sdl/lv_sdl_keyboard.h"
 #include <pthread.h>
-
+#include "read_card_screen.h"
+#include "smartcard_auth.h"
 /*********************
  *      DEFINES
  *********************/
@@ -36,7 +37,7 @@ static lv_disp_t * hal_init(lv_coord_t w, lv_coord_t h);
 /**********************
  *  STATIC VARIABLES
  **********************/
-
+pthread_mutex_t lvgl_lock;
 /**********************
  *      MACROS
  **********************/
@@ -66,6 +67,20 @@ static lv_disp_t * hal_init(lv_coord_t w, lv_coord_t h);
  **********************/
 
 
+void* lvgl_update_function(void* args)
+{
+    while(1)
+    {
+        /* Periodically call the lv_task handler.
+         * It could be done in a timer interrupt or an OS task too.*/
+        pthread_mutex_lock(&lvgl_lock);
+        lv_timer_handler();
+        pthread_mutex_unlock(&lvgl_lock);
+        usleep( 10 * 1000);
+    }
+}
+
+
 int main(int argc, char **argv)
 {
   (void)argc; /*Unused*/
@@ -73,11 +88,14 @@ int main(int argc, char **argv)
 
   /*Initialize LVGL*/
    lv_init();
-  hal_init(800, 480);
+  hal_init(1280, 400);
+    //lv_example_img_1();
+    init_read_card_screen();
+    lv_timer_handler();
+    pthread_t thread_id;
+    pthread_create(&thread_id, NULL, SmartCardTask, NULL);
 
-//  lv_example_img_1();
-
-  lv_demo_widgets();
+  //lv_demo_widgets();
 //  lv_disp_get_scr_act(NULL);
 
 //  hal_init(800, 480);
@@ -121,16 +139,23 @@ int main(int argc, char **argv)
 //      lv_obj_invalidate(lv_scr_act());
 //}
 //exit(0);
+    pthread_t lvgl_update_task;
 
+
+    /*creating thread*/
+    pthread_create(&lvgl_update_task, NULL, &lvgl_update_function, NULL);
+    pthread_mutex_init(&lvgl_lock, NULL);
   while(1) {
       /* Periodically call the lv_task handler.
        * It could be done in a timer interrupt or an OS task too.*/
-      lv_timer_handler();
+     // lv_timer_handler();
 //      lv_refr_now(NULL);
 //      lv_obj_invalidate(lv_scr_act());
 //      usleep(1 * 1000);
   }
-
+  pthread_join(thread_id, NULL);
+  exit(0);
+  //
   return 0;
 }
 
